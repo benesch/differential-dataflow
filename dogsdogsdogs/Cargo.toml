@@ -7,7 +7,7 @@ license = "MIT"
 [dependencies]
 abomonation = "0.7"
 abomonation_derive = "0.5"
-timely = { git = "https://github.com/TimelyDataflow/timely-dataflow" }
+timely = { git = "https://github.com/benesch/timely-dataflow", branch = "crossbeam-channels" }
 timely_sort = "0.1.6"
 differential-dataflow = { path = "../" }
 serde = "1"
