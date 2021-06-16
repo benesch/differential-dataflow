@@ -20,6 +20,7 @@ use timely::scheduling::Activator;
 use super::{TraceWriter, TraceAgentQueueWriter, TraceAgentQueueReader, Arranged};
 use super::TraceReplayInstruction;
 
+use crate::trace::cursor::DdBorrow;
 use crate::trace::wrappers::frontier::{TraceFrontier, BatchFrontier};
 
 
@@ -45,6 +46,7 @@ impl<Tr> TraceReader for TraceAgent<Tr>
 where
     Tr: TraceReader,
     Tr::Time: Lattice+Ord+Clone+'static,
+    Tr::Key: DdBorrow,
 {
     type Key = Tr::Key;
     type Val = Tr::Val;
@@ -154,6 +156,7 @@ impl<Tr> TraceAgent<Tr>
 where
     Tr: TraceReader+'static,
     Tr::Time: Lattice+Ord+Clone+'static,
+    Tr::Key: DdBorrow,
 {
     /// Copies an existing collection into the supplied scope.
     ///

@@ -82,12 +82,14 @@ use ::timely::dataflow::operators::generic::OperatorInfo;
 use ::timely::progress::{Antichain, frontier::AntichainRef};
 use ::timely::order::PartialOrder;
 
+use crate::trace::cursor::DdBorrow;
+
 /// An append-only collection of update tuples.
 ///
 /// A spine maintains a small number of immutable collections of update tuples, merging the collections when
 /// two have similar sizes. In this way, it allows the addition of more tuples, which may then be merged with
 /// other immutable collections.
-pub struct Spine<K, V, T: Lattice+Ord, R: Semigroup, B: Batch<K, V, T, R>> {
+pub struct Spine<K: DdBorrow, V, T: Lattice+Ord, R: Semigroup, B: Batch<K, V, T, R>> {
     operator: OperatorInfo,
     logger: Option<Logger>,
     phantom: ::std::marker::PhantomData<(K, V, R)>,
@@ -102,7 +104,7 @@ pub struct Spine<K, V, T: Lattice+Ord, R: Semigroup, B: Batch<K, V, T, R>> {
 
 impl<K, V, T, R, B> TraceReader for Spine<K, V, T, R, B>
 where
-    K: Ord+Clone,           // Clone is required by `batch::advance_*` (in-place could remove).
+    K: Ord+Clone+DdBorrow,           // Clone is required by `batch::advance_*` (in-place could remove).
     V: Ord+Clone,           // Clone is required by `batch::advance_*` (in-place could remove).
     T: Lattice+timely::progress::Timestamp+Ord+Clone+Debug,
     R: Semigroup,
@@ -243,7 +245,7 @@ where
 // TODO: Almost all this implementation seems to be generic with respect to the trace and batch types.
 impl<K, V, T, R, B> Trace for Spine<K, V, T, R, B>
 where
-    K: Ord+Clone,
+    K: Ord+Clone+DdBorrow,
     V: Ord+Clone,
     T: Lattice+timely::progress::Timestamp+Ord+Clone+Debug,
     R: Semigroup,
@@ -319,6 +321,7 @@ where
 // Drop implementation allows us to log batch drops, to zero out maintained totals.
 impl<K, V, T, R, B> Drop for Spine<K, V, T, R, B>
 where
+    K: DdBorrow,
     T: Lattice+Ord,
     R: Semigroup,
     B: Batch<K, V, T, R>,
@@ -331,6 +334,7 @@ where
 
 impl<K, V, T, R, B> Spine<K, V, T, R, B>
 where
+    K: DdBorrow,
     T: Lattice+Ord,
     R: Semigroup,
     B: Batch<K, V, T, R>,
@@ -377,7 +381,7 @@ where
 
 impl<K, V, T, R, B> Spine<K, V, T, R, B>
 where
-    K: Ord+Clone,
+    K: Ord+Clone+DdBorrow,
     V: Ord+Clone,
     T: Lattice+timely::progress::Timestamp+Ord+Clone+Debug,
     R: Semigroup,
@@ -765,7 +769,7 @@ where
 ///
 /// A layer can be empty, contain a single batch, or contain a pair of batches
 /// that are in the process of merging into a batch for the next layer.
-enum MergeState<K, V, T, R, B: Batch<K, V, T, R>> {
+enum MergeState<K: DdBorrow, V, T, R, B: Batch<K, V, T, R>> {
     /// An empty layer, containing no updates.
     Vacant,
     /// A layer containing a single batch.
@@ -777,7 +781,7 @@ enum MergeState<K, V, T, R, B: Batch<K, V, T, R>> {
     Double(MergeVariant<K, V, T, R, B>),
 }
 
-impl<K, V, T: Eq, R, B: Batch<K, V, T, R>> MergeState<K, V, T, R, B> {
+impl<K: DdBorrow, V, T: Eq, R, B: Batch<K, V, T, R>> MergeState<K, V, T, R, B> {
 
     /// The number of actual updates contained in the level.
     fn len(&self) -> usize {
@@ -875,14 +879,14 @@ impl<K, V, T: Eq, R, B: Batch<K, V, T, R>> MergeState<K, V, T, R, B> {
     }
 }
 
-enum MergeVariant<K, V, T, R, B: Batch<K, V, T, R>> {
+enum MergeVariant<K: DdBorrow, V, T, R, B: Batch<K, V, T, R>> {
     /// Describes an actual in-progress merge between two non-trivial batches.
     InProgress(B, B, <B as Batch<K,V,T,R>>::Merger),
     /// A merge that requires no further work. May or may not represent a non-trivial batch.
     Complete(Option<(B, Option<(B, B)>)>),
 }
 
-impl<K, V, T, R, B: Batch<K, V, T, R>> MergeVariant<K, V, T, R, B> {
+impl<K: DdBorrow, V, T, R, B: Batch<K, V, T, R>> MergeVariant<K, V, T, R, B> {
 
     /// Completes and extracts the batch, unless structurally empty.
     ///

@@ -24,6 +24,8 @@ use operators::ValueHistory;
 
 use trace::TraceReader;
 
+use crate::trace::cursor::DdBorrow;
+
 /// Join implementations for `(key,val)` data.
 pub trait Join<G: Scope, K: Data, V: Data, R: Semigroup> {
 
@@ -156,7 +158,7 @@ pub trait Join<G: Scope, K: Data, V: Data, R: Semigroup> {
 impl<G, K, V, R> Join<G, K, V, R> for Collection<G, (K, V), R>
 where
     G: Scope,
-    K: ExchangeData+Hashable,
+    K: ExchangeData+Hashable+DdBorrow,
     V: ExchangeData,
     R: ExchangeData+Semigroup,
     G::Timestamp: Lattice+Ord,
@@ -186,7 +188,7 @@ where
     G: Scope,
     G::Timestamp: Lattice+Ord,
     Tr: TraceReader<Time=G::Timestamp>+Clone+'static,
-    Tr::Key: Data+Hashable,
+    Tr::Key: Data+Hashable+DdBorrow,
     Tr::Val: Data,
     Tr::R: Semigroup,
     Tr::Batch: BatchReader<Tr::Key,Tr::Val,G::Timestamp,Tr::R>+'static,
@@ -257,6 +259,7 @@ pub trait JoinCore<G: Scope, K: 'static, V: 'static, R: Semigroup> where G::Time
         Tr2: TraceReader<Key=K, Time=G::Timestamp>+Clone+'static,
         Tr2::Batch: BatchReader<K, Tr2::Val, G::Timestamp, Tr2::R>+'static,
         Tr2::Cursor: Cursor<K, Tr2::Val, G::Timestamp, Tr2::R>+'static,
+        Tr2::Key: DdBorrow,
         Tr2::Val: Ord+Clone+Debug+'static,
         Tr2::R: Semigroup,
         R: Multiply<Tr2::R>,
@@ -281,6 +284,7 @@ where
         Tr2: TraceReader<Key=K, Time=G::Timestamp>+Clone+'static,
         Tr2::Batch: BatchReader<K, Tr2::Val, G::Timestamp, Tr2::R>+'static,
         Tr2::Cursor: Cursor<K, Tr2::Val, G::Timestamp, Tr2::R>+'static,
+        Tr2::Key: DdBorrow,
         Tr2::Val: Ord+Clone+Debug+'static,
         Tr2::R: Semigroup,
         R: Multiply<Tr2::R>,
@@ -299,7 +303,7 @@ impl<G, T1> JoinCore<G, T1::Key, T1::Val, T1::R> for Arranged<G,T1>
         G: Scope,
         G::Timestamp: Lattice+Ord+Debug,
         T1: TraceReader<Time=G::Timestamp>+Clone+'static,
-        T1::Key: Ord+Debug+'static,
+        T1::Key: Ord+Debug+DdBorrow+'static,
         T1::Val: Ord+Clone+Debug+'static,
         T1::R: Semigroup,
         T1::Batch: BatchReader<T1::Key,T1::Val,G::Timestamp,T1::R>+'static,
@@ -563,6 +567,7 @@ impl<G, T1> JoinCore<G, T1::Key, T1::Val, T1::R> for Arranged<G,T1>
 /// dataflow system a chance to run operators that can consume and aggregate the data.
 struct Deferred<K, V1, V2, T, R1, R2, R3, C1, C2, D>
 where
+    K: DdBorrow,
     V1: Ord+Clone,
     V2: Ord+Clone,
     T: Timestamp+Lattice+Ord+Debug,
@@ -585,7 +590,7 @@ where
 
 impl<K, V1, V2, T, R1, R2, R3, C1, C2, D> Deferred<K, V1, V2, T, R1, R2, R3, C1, C2, D>
 where
-    K: Ord+Debug+Eq,
+    K: Ord+Debug+Eq+DdBorrow,
     V1: Ord+Clone+Debug,
     V2: Ord+Clone+Debug,
     T: Timestamp+Lattice+Ord+Debug,

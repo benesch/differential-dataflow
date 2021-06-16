@@ -8,6 +8,9 @@ use lattice::Lattice;
 use trace::{TraceReader, BatchReader, Description};
 use trace::cursor::Cursor;
 
+use crate::trace::cursor::DdBorrow;
+use crate::trace::cursor::DdToOwned;
+
 /// Wrapper to provide trace to nested scope.
 ///
 /// Each wrapped update is presented with a timestamp determined by `logic`.
@@ -48,7 +51,7 @@ impl<Tr, TInner, F, G> TraceReader for TraceEnter<Tr, TInner, F, G>
 where
     Tr: TraceReader,
     Tr::Batch: Clone,
-    Tr::Key: 'static,
+    Tr::Key: 'static + DdBorrow,
     Tr::Val: 'static,
     Tr::Time: Timestamp,
     TInner: Refines<Tr::Time>+Lattice,
@@ -151,6 +154,7 @@ impl<K, V, T, R, B: Clone, TInner: Clone, F: Clone> Clone for BatchEnter<K, V, T
 
 impl<K, V, T, R, B, TInner, F> BatchReader<K, V, TInner, R> for BatchEnter<K, V, T, R, B, TInner, F>
 where
+    K: DdBorrow,
     B: BatchReader<K, V, T, R>,
     T: Timestamp,
     TInner: Refines<T>+Lattice,
@@ -167,6 +171,7 @@ where
 
 impl<K, V, T, R, B, TInner, F> BatchEnter<K, V, T, R, B, TInner, F>
 where
+    K: DdBorrow,
     B: BatchReader<K, V, T, R>,
     T: Timestamp,
     TInner: Refines<T>+Lattice,
@@ -187,13 +192,13 @@ where
 }
 
 /// Wrapper to provide cursor to nested scope.
-pub struct CursorEnter<K, V, T, R, C: Cursor<K, V, T, R>, TInner, F> {
+pub struct CursorEnter<K: DdBorrow, V, T, R, C: Cursor<K, V, T, R>, TInner, F> {
     phantom: ::std::marker::PhantomData<(K, V, T, R, TInner)>,
     cursor: C,
     logic: F,
 }
 
-impl<K, V, T, R, C: Cursor<K, V, T, R>, TInner, F> CursorEnter<K, V, T, R, C, TInner, F> {
+impl<K: DdBorrow, V, T, R, C: Cursor<K, V, T, R>, TInner, F> CursorEnter<K, V, T, R, C, TInner, F> {
     fn new(cursor: C, logic: F) -> Self {
         CursorEnter {
             phantom: ::std::marker::PhantomData,
@@ -203,7 +208,7 @@ impl<K, V, T, R, C: Cursor<K, V, T, R>, TInner, F> CursorEnter<K, V, T, R, C, TI
     }
 }
 
-impl<K, V, T, R, C, TInner, F> Cursor<K, V, TInner, R> for CursorEnter<K, V, T, R, C, TInner, F>
+impl<K: DdBorrow, V, T, R, C, TInner, F> Cursor<K, V, TInner, R> for CursorEnter<K, V, T, R, C, TInner, F>
 where
     C: Cursor<K, V, T, R>,
     T: Timestamp,
@@ -215,16 +220,16 @@ where
     #[inline] fn key_valid(&self, storage: &Self::Storage) -> bool { self.cursor.key_valid(storage) }
     #[inline] fn val_valid(&self, storage: &Self::Storage) -> bool { self.cursor.val_valid(storage) }
 
-    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K { self.cursor.key(storage) }
+    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K::Borrowed { self.cursor.key(storage) }
     #[inline] fn val<'a>(&self, storage: &'a Self::Storage) -> &'a V { self.cursor.val(storage) }
 
     #[inline]
     fn map_times<L: FnMut(&TInner, &R)>(&mut self, storage: &Self::Storage, mut logic: L) {
-        let key = self.key(storage);
+        let key = self.key(storage).dd_to_owned();
         let val = self.val(storage);
         let logic2 = &mut self.logic;
         self.cursor.map_times(storage, |time, diff| {
-            logic(&logic2(key, val, time), diff)
+            logic(&logic2(&key, val, time), diff)
         })
     }
 
@@ -241,13 +246,13 @@ where
 
 
 /// Wrapper to provide cursor to nested scope.
-pub struct BatchCursorEnter<K, V, T, R, B: BatchReader<K, V, T, R>, TInner, F> {
+pub struct BatchCursorEnter<K: DdBorrow, V, T, R, B: BatchReader<K, V, T, R>, TInner, F> {
     phantom: ::std::marker::PhantomData<(K, V, R, TInner)>,
     cursor: B::Cursor,
     logic: F,
 }
 
-impl<K, V, T, R, B: BatchReader<K, V, T, R>, TInner, F> BatchCursorEnter<K, V, T, R, B, TInner, F> {
+impl<K: DdBorrow, V, T, R, B: BatchReader<K, V, T, R>, TInner, F> BatchCursorEnter<K, V, T, R, B, TInner, F> {
     fn new(cursor: B::Cursor, logic: F) -> Self {
         BatchCursorEnter {
             phantom: ::std::marker::PhantomData,
@@ -257,7 +262,7 @@ impl<K, V, T, R, B: BatchReader<K, V, T, R>, TInner, F> BatchCursorEnter<K, V, T
     }
 }
 
-impl<K, V, T, R, TInner, B: BatchReader<K, V, T, R>, F> Cursor<K, V, TInner, R> for BatchCursorEnter<K, V, T, R, B, TInner, F>
+impl<K: DdBorrow, V, T, R, TInner, B: BatchReader<K, V, T, R>, F> Cursor<K, V, TInner, R> for BatchCursorEnter<K, V, T, R, B, TInner, F>
 where
     T: Timestamp,
     TInner: Refines<T>+Lattice,
@@ -268,16 +273,16 @@ where
     #[inline] fn key_valid(&self, storage: &Self::Storage) -> bool { self.cursor.key_valid(&storage.batch) }
     #[inline] fn val_valid(&self, storage: &Self::Storage) -> bool { self.cursor.val_valid(&storage.batch) }
 
-    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K { self.cursor.key(&storage.batch) }
+    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K::Borrowed { self.cursor.key(&storage.batch) }
     #[inline] fn val<'a>(&self, storage: &'a Self::Storage) -> &'a V { self.cursor.val(&storage.batch) }
 
     #[inline]
     fn map_times<L: FnMut(&TInner, &R)>(&mut self, storage: &Self::Storage, mut logic: L) {
-        let key = self.key(storage);
+        let key = self.key(storage).dd_to_owned();
         let val = self.val(storage);
         let logic2 = &mut self.logic;
         self.cursor.map_times(&storage.batch, |time, diff| {
-            logic(&logic2(key, val, time), diff)
+            logic(&logic2(&key, val, time), diff)
         })
     }
 

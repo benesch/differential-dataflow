@@ -6,6 +6,9 @@ use timely::progress::frontier::AntichainRef;
 use trace::{TraceReader, BatchReader, Description};
 use trace::cursor::Cursor;
 
+use crate::trace::cursor::DdBorrow;
+use crate::trace::cursor::DdToOwned;
+
 /// Wrapper to provide trace to nested scope.
 pub struct TraceFilter<Tr, F> {
     trace: Tr,
@@ -29,7 +32,7 @@ impl<Tr, F> TraceReader for TraceFilter<Tr, F>
 where
     Tr: TraceReader,
     Tr::Batch: Clone,
-    Tr::Key: 'static,
+    Tr::Key: 'static + DdBorrow,
     Tr::Val: 'static,
     Tr::Time: Timestamp,
     Tr::R: 'static,
@@ -94,6 +97,7 @@ impl<K, V, T, R, B: Clone, F: Clone> Clone for BatchFilter<K, V, T, R, B, F> {
 
 impl<K, V, T, R, B, F> BatchReader<K, V, T, R> for BatchFilter<K, V, T, R, B, F>
 where
+    K: DdBorrow,
     B: BatchReader<K, V, T, R>,
     T: Timestamp,
     F: FnMut(&K, &V)->bool+Clone+'static
@@ -109,6 +113,7 @@ where
 
 impl<K, V, T, R, B, F> BatchFilter<K, V, T, R, B, F>
 where
+    K: DdBorrow,
     B: BatchReader<K, V, T, R>,
     T: Timestamp,
 {
@@ -123,13 +128,13 @@ where
 }
 
 /// Wrapper to provide cursor to nested scope.
-pub struct CursorFilter<K, V, T, R, C: Cursor<K, V, T, R>, F> {
+pub struct CursorFilter<K: DdBorrow, V, T, R, C: Cursor<K, V, T, R>, F> {
     phantom: ::std::marker::PhantomData<(K, V, T, R)>,
     cursor: C,
     logic: F,
 }
 
-impl<K, V, T, R, C: Cursor<K, V, T, R>, F> CursorFilter<K, V, T, R, C, F> {
+impl<K: DdBorrow, V, T, R, C: Cursor<K, V, T, R>, F> CursorFilter<K, V, T, R, C, F> {
     fn new(cursor: C, logic: F) -> Self {
         CursorFilter {
             phantom: ::std::marker::PhantomData,
@@ -139,7 +144,7 @@ impl<K, V, T, R, C: Cursor<K, V, T, R>, F> CursorFilter<K, V, T, R, C, F> {
     }
 }
 
-impl<K, V, T, R, C, F> Cursor<K, V, T, R> for CursorFilter<K, V, T, R, C, F>
+impl<K: DdBorrow, V, T, R, C, F> Cursor<K, V, T, R> for CursorFilter<K, V, T, R, C, F>
 where
     C: Cursor<K, V, T, R>,
     T: Timestamp,
@@ -150,14 +155,14 @@ where
     #[inline] fn key_valid(&self, storage: &Self::Storage) -> bool { self.cursor.key_valid(storage) }
     #[inline] fn val_valid(&self, storage: &Self::Storage) -> bool { self.cursor.val_valid(storage) }
 
-    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K { self.cursor.key(storage) }
+    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K::Borrowed { self.cursor.key(storage) }
     #[inline] fn val<'a>(&self, storage: &'a Self::Storage) -> &'a V { self.cursor.val(storage) }
 
     #[inline]
     fn map_times<L: FnMut(&T,&R)>(&mut self, storage: &Self::Storage, logic: L) {
-        let key = self.key(storage);
+        let key = self.key(storage).dd_to_owned();
         let val = self.val(storage);
-        if (self.logic)(key, val) {
+        if (self.logic)(&key, val) {
             self.cursor.map_times(storage, logic)
         }
     }
@@ -175,13 +180,13 @@ where
 
 
 /// Wrapper to provide cursor to nested scope.
-pub struct BatchCursorFilter<K, V, T, R, B: BatchReader<K, V, T, R>, F> {
+pub struct BatchCursorFilter<K: DdBorrow, V, T, R, B: BatchReader<K, V, T, R>, F> {
     phantom: ::std::marker::PhantomData<(K, V, R)>,
     cursor: B::Cursor,
     logic: F,
 }
 
-impl<K, V, T, R, B: BatchReader<K, V, T, R>, F> BatchCursorFilter<K, V, T, R, B, F> {
+impl<K: DdBorrow, V, T, R, B: BatchReader<K, V, T, R>, F> BatchCursorFilter<K, V, T, R, B, F> {
     fn new(cursor: B::Cursor, logic: F) -> Self {
         BatchCursorFilter {
             phantom: ::std::marker::PhantomData,
@@ -193,6 +198,7 @@ impl<K, V, T, R, B: BatchReader<K, V, T, R>, F> BatchCursorFilter<K, V, T, R, B,
 
 impl<K, V, T, R, B: BatchReader<K, V, T, R>, F> Cursor<K, V, T, R> for BatchCursorFilter<K, V, T, R, B, F>
 where
+    K: DdBorrow,
     T: Timestamp,
     F: FnMut(&K, &V)->bool+'static,
 {
@@ -201,14 +207,14 @@ where
     #[inline] fn key_valid(&self, storage: &Self::Storage) -> bool { self.cursor.key_valid(&storage.batch) }
     #[inline] fn val_valid(&self, storage: &Self::Storage) -> bool { self.cursor.val_valid(&storage.batch) }
 
-    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K { self.cursor.key(&storage.batch) }
+    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K::Borrowed { self.cursor.key(&storage.batch) }
     #[inline] fn val<'a>(&self, storage: &'a Self::Storage) -> &'a V { self.cursor.val(&storage.batch) }
 
     #[inline]
     fn map_times<L: FnMut(&T,&R)>(&mut self, storage: &Self::Storage, logic: L) {
-        let key = self.key(storage);
+        let key = self.key(storage).dd_to_owned();
         let val = self.val(storage);
-        if (self.logic)(key, val) {
+        if (self.logic)(&key, val) {
             self.cursor.map_times(&storage.batch, logic)
         }
     }

@@ -16,6 +16,8 @@ use collection::AsCollection;
 use operators::arrange::{Arranged, ArrangeBySelf};
 use trace::{BatchReader, Cursor, TraceReader};
 
+use crate::trace::cursor::DdBorrow;
+
 /// Extension trait for the `distinct` differential dataflow method.
 pub trait ThresholdTotal<G: Scope, K: ExchangeData, R: ExchangeData+Semigroup> where G::Timestamp: TotalOrder+Lattice+Ord {
     /// Reduces the collection to one occurrence of each distinct element.
@@ -106,7 +108,7 @@ impl<G: Scope, T1> ThresholdTotal<G, T1::Key, T1::R> for Arranged<G, T1>
 where
     G::Timestamp: TotalOrder+Lattice+Ord,
     T1: TraceReader<Val=(), Time=G::Timestamp>+Clone+'static,
-    T1::Key: ExchangeData,
+    T1::Key: ExchangeData + DdBorrow,
     T1::R: ExchangeData+Semigroup,
     T1::Batch: BatchReader<T1::Key, (), G::Timestamp, T1::R>,
     T1::Cursor: Cursor<T1::Key, (), G::Timestamp, T1::R>,

@@ -10,6 +10,7 @@ use timely::progress::{Antichain, frontier::AntichainRef};
 use trace::{TraceReader, BatchReader, Description};
 use trace::cursor::Cursor;
 use crate::lattice::Lattice;
+use crate::trace::cursor::DdBorrow;
 
 /// Wrapper to provide trace to nested scope.
 pub struct TraceFrontier<Tr>
@@ -37,7 +38,7 @@ impl<Tr> TraceReader for TraceFrontier<Tr>
 where
     Tr: TraceReader,
     Tr::Batch: Clone,
-    Tr::Key: 'static,
+    Tr::Key: 'static + DdBorrow,
     Tr::Val: 'static,
     Tr::Time: Timestamp+Lattice,
     Tr::R: 'static,
@@ -101,6 +102,7 @@ impl<K, V, T: Clone, R, B: Clone> Clone for BatchFrontier<K, V, T, R, B> {
 
 impl<K, V, T, R, B> BatchReader<K, V, T, R> for BatchFrontier<K, V, T, R, B>
 where
+    K: DdBorrow,
     B: BatchReader<K, V, T, R>,
     T: Timestamp+Lattice,
 {
@@ -115,6 +117,7 @@ where
 
 impl<K, V, T, R, B> BatchFrontier<K, V, T, R, B>
 where
+    K: DdBorrow,
     B: BatchReader<K, V, T, R>,
     T: Timestamp+Lattice,
 {
@@ -129,13 +132,13 @@ where
 }
 
 /// Wrapper to provide cursor to nested scope.
-pub struct CursorFrontier<K, V, T, R, C: Cursor<K, V, T, R>> {
+pub struct CursorFrontier<K: DdBorrow, V, T, R, C: Cursor<K, V, T, R>> {
     phantom: ::std::marker::PhantomData<(K, V, T, R)>,
     cursor: C,
     frontier: Antichain<T>,
 }
 
-impl<K, V, T: Clone, R, C: Cursor<K, V, T, R>> CursorFrontier<K, V, T, R, C> {
+impl<K: DdBorrow, V, T: Clone, R, C: Cursor<K, V, T, R>> CursorFrontier<K, V, T, R, C> {
     fn new(cursor: C, frontier: AntichainRef<T>) -> Self {
         CursorFrontier {
             phantom: ::std::marker::PhantomData,
@@ -145,7 +148,7 @@ impl<K, V, T: Clone, R, C: Cursor<K, V, T, R>> CursorFrontier<K, V, T, R, C> {
     }
 }
 
-impl<K, V, T, R, C> Cursor<K, V, T, R> for CursorFrontier<K, V, T, R, C>
+impl<K: DdBorrow, V, T, R, C> Cursor<K, V, T, R> for CursorFrontier<K, V, T, R, C>
 where
     C: Cursor<K, V, T, R>,
     T: Timestamp+Lattice,
@@ -155,7 +158,7 @@ where
     #[inline] fn key_valid(&self, storage: &Self::Storage) -> bool { self.cursor.key_valid(storage) }
     #[inline] fn val_valid(&self, storage: &Self::Storage) -> bool { self.cursor.val_valid(storage) }
 
-    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K { self.cursor.key(storage) }
+    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K::Borrowed { self.cursor.key(storage) }
     #[inline] fn val<'a>(&self, storage: &'a Self::Storage) -> &'a V { self.cursor.val(storage) }
 
     #[inline]
@@ -182,13 +185,13 @@ where
 
 
 /// Wrapper to provide cursor to nested scope.
-pub struct BatchCursorFrontier<K, V, T, R, B: BatchReader<K, V, T, R>> {
+pub struct BatchCursorFrontier<K: DdBorrow, V, T, R, B: BatchReader<K, V, T, R>> {
     phantom: ::std::marker::PhantomData<(K, V, R)>,
     cursor: B::Cursor,
     frontier: Antichain<T>,
 }
 
-impl<K, V, T: Clone, R, B: BatchReader<K, V, T, R>> BatchCursorFrontier<K, V, T, R, B> {
+impl<K: DdBorrow, V, T: Clone, R, B: BatchReader<K, V, T, R>> BatchCursorFrontier<K, V, T, R, B> {
     fn new(cursor: B::Cursor, frontier: AntichainRef<T>) -> Self {
         BatchCursorFrontier {
             phantom: ::std::marker::PhantomData,
@@ -198,7 +201,7 @@ impl<K, V, T: Clone, R, B: BatchReader<K, V, T, R>> BatchCursorFrontier<K, V, T,
     }
 }
 
-impl<K, V, T, R, B: BatchReader<K, V, T, R>> Cursor<K, V, T, R> for BatchCursorFrontier<K, V, T, R, B>
+impl<K: DdBorrow, V, T, R, B: BatchReader<K, V, T, R>> Cursor<K, V, T, R> for BatchCursorFrontier<K, V, T, R, B>
 where
     T: Timestamp+Lattice,
 {
@@ -207,7 +210,7 @@ where
     #[inline] fn key_valid(&self, storage: &Self::Storage) -> bool { self.cursor.key_valid(&storage.batch) }
     #[inline] fn val_valid(&self, storage: &Self::Storage) -> bool { self.cursor.val_valid(&storage.batch) }
 
-    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K { self.cursor.key(&storage.batch) }
+    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K::Borrowed { self.cursor.key(&storage.batch) }
     #[inline] fn val<'a>(&self, storage: &'a Self::Storage) -> &'a V { self.cursor.val(&storage.batch) }
 
     #[inline]

@@ -1,20 +1,20 @@
 //! A generic cursor implementation merging multiple cursors.
 
-use super::Cursor;
+use super::{Cursor, DdBorrow, DdToOwned};
 
 /// Provides a cursor interface over a list of cursors.
 ///
 /// The `CursorList` tracks the indices of cursors with the minimum key, and the the indices of cursors with
 /// the minimum key and minimum value. It performs no clever management of these sets otherwise.
 #[derive(Debug)]
-pub struct CursorList<K, V, T, R, C: Cursor<K, V, T, R>> {
+pub struct CursorList<K: DdBorrow, V, T, R, C: Cursor<K, V, T, R>> {
     _phantom: ::std::marker::PhantomData<(K, V, T, R)>,
     cursors: Vec<C>,
     min_key: Vec<usize>,
     min_val: Vec<usize>,
 }
 
-impl<K, V, T, R, C: Cursor<K, V, T, R>> CursorList<K, V, T, R, C> where K: Ord, V: Ord {
+impl<K: DdBorrow, V, T, R, C: Cursor<K, V, T, R>> CursorList<K, V, T, R, C> where K: Ord, V: Ord {
     /// Creates a new cursor list from pre-existing cursors.
     pub fn new(cursors: Vec<C>, storage: &[C::Storage]) -> Self {
 
@@ -43,9 +43,9 @@ impl<K, V, T, R, C: Cursor<K, V, T, R>> CursorList<K, V, T, R, C> where K: Ord, 
         self.min_key.clear();
 
         // Determine the index of the cursor with minimum key.
-        let mut min_key_opt: Option<&K> = None;
+        let mut min_key_opt = None;
         for (index, cursor) in self.cursors.iter().enumerate() {
-            let key = cursor.get_key(&storage[index]);
+            let key = cursor.get_key(&storage[index]).map(|k| k.dd_to_owned());
             if key.is_some() {
                 if min_key_opt.is_none() || key.lt(&min_key_opt) {
                     min_key_opt = key;
@@ -87,7 +87,7 @@ impl<K, V, T, R, C: Cursor<K, V, T, R>> CursorList<K, V, T, R, C> where K: Ord, 
     }
 }
 
-impl<K, V, T, R, C: Cursor<K, V, T, R>> Cursor<K, V, T, R> for CursorList<K, V, T, R, C>
+impl<K: DdBorrow, V, T, R, C: Cursor<K, V, T, R>> Cursor<K, V, T, R> for CursorList<K, V, T, R, C>
 where
     K: Ord,
     V: Ord {
@@ -102,7 +102,7 @@ where
 
     // accessors
     #[inline]
-    fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K {
+    fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K::Borrowed {
         debug_assert!(self.key_valid(storage));
         debug_assert!(self.cursors[self.min_key[0]].key_valid(&storage[self.min_key[0]]));
         self.cursors[self.min_key[0]].key(&storage[self.min_key[0]])

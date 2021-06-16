@@ -22,13 +22,14 @@ where
 
 use crate::trace::TraceReader;
 use crate::operators::arrange::Arranged;
+use crate::trace::cursor::DdBorrow;
 
 /// Returns pairs (node, dist) indicating distance of each node from a root.
 pub fn bfs_arranged<G, N, Tr>(edges: &Arranged<G, Tr>, roots: &Collection<G, N>) -> Collection<G, (N, u32)>
 where
     G: Scope,
     G::Timestamp: Lattice+Ord,
-    N: ExchangeData+Hash,
+    N: ExchangeData+Hash+DdBorrow,
     Tr: TraceReader<Key=N, Val=N, Time=G::Timestamp, R=isize>+Clone+'static,
     Tr::Batch: crate::trace::BatchReader<N, N, G::Timestamp, Tr::R>+'static,
     Tr::Cursor: crate::trace::Cursor<N, N, G::Timestamp, Tr::R>+'static,

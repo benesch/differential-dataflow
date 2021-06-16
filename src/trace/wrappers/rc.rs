@@ -20,6 +20,8 @@ use lattice::Lattice;
 use trace::TraceReader;
 use trace::cursor::Cursor;
 
+use crate::trace::cursor::DdBorrow;
+
 /// A wrapper around a trace which tracks the frontiers of all referees.
 ///
 /// This is an internal type, unlikely to be useful to higher-level programs, but exposed just in case.
@@ -93,6 +95,7 @@ where
 impl<Tr> TraceReader for TraceRc<Tr>
 where
     Tr::Time: Lattice+Ord+Clone+'static,
+    Tr::Key: DdBorrow,
     Tr: TraceReader,
 {
     type Key = Tr::Key;

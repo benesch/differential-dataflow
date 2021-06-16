@@ -28,6 +28,8 @@ use trace::description::Description;
 
 use trace::layers::MergeBuilder;
 
+use crate::trace::cursor::DdBorrow;
+
 // use super::spine::Spine;
 use super::spine_fueled::Spine;
 use super::merge_batcher::MergeBatcher;
@@ -64,7 +66,7 @@ where
 
 impl<K, V, T, R, O> BatchReader<K, V, T, R> for OrdValBatch<K, V, T, R, O>
 where
-    K: Ord+Clone+'static,
+    K: Ord+Clone+DdBorrow+'static,
     V: Ord+Clone+'static,
     T: Lattice+Ord+Clone+'static,
     R: Semigroup,
@@ -78,7 +80,7 @@ where
 
 impl<K, V, T, R, O> Batch<K, V, T, R> for OrdValBatch<K, V, T, R, O>
 where
-    K: Ord+Clone+'static,
+    K: Ord+Clone+DdBorrow+'static,
     V: Ord+Clone+'static,
     T: Lattice+timely::progress::Timestamp+Ord+Clone+::std::fmt::Debug+'static,
     R: Semigroup,
@@ -217,7 +219,7 @@ where
 
 impl<K, V, T, R, O> Merger<K, V, T, R, OrdValBatch<K, V, T, R, O>> for OrdValMerger<K, V, T, R, O>
 where
-    K: Ord+Clone+'static,
+    K: Ord+Clone+DdBorrow+'static,
     V: Ord+Clone+'static,
     T: Lattice+timely::progress::Timestamp+Ord+Clone+::std::fmt::Debug+'static,
     R: Semigroup,
@@ -316,7 +318,7 @@ where
     cursor: OrderedCursor<OrderedLayer<V, OrderedLeaf<T, R>, O>>,
 }
 
-impl<K, V, T, R, O> Cursor<K, V, T, R> for OrdValCursor<V, T, R, O>
+impl<K: DdBorrow, V, T, R, O> Cursor<K, V, T, R> for OrdValCursor<V, T, R, O>
 where
     K: Ord+Clone,
     V: Ord+Clone,
@@ -326,7 +328,7 @@ where
 {
     type Storage = OrdValBatch<K, V, T, R, O>;
 
-    fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K { &self.cursor.key(&storage.layer) }
+    fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K::Borrowed { self.cursor.key(&storage.layer).dd_borrow() }
     fn val<'a>(&self, storage: &'a Self::Storage) -> &'a V { &self.cursor.child.key(&storage.layer.vals) }
     fn map_times<L: FnMut(&T, &R)>(&mut self, storage: &Self::Storage, mut logic: L) {
         self.cursor.child.child.rewind(&storage.layer.vals.vals);
@@ -360,7 +362,7 @@ where
 
 impl<K, V, T, R, O> Builder<K, V, T, R, OrdValBatch<K, V, T, R, O>> for OrdValBuilder<K, V, T, R, O>
 where
-    K: Ord+Clone+'static,
+    K: Ord+Clone+DdBorrow+'static,
     V: Ord+Clone+'static,
     T: Lattice+timely::progress::Timestamp+Ord+Clone+::std::fmt::Debug+'static,
     R: Semigroup,
@@ -411,7 +413,7 @@ where
 
 impl<K, T, R, O> BatchReader<K, (), T, R> for OrdKeyBatch<K, T, R, O>
 where
-    K: Ord+Clone+'static,
+    K: Ord+Clone+DdBorrow+'static,
     T: Lattice+Ord+Clone+'static,
     R: Semigroup,
     O: OrdOffset, <O as TryFrom<usize>>::Error: Debug, <O as TryInto<usize>>::Error: Debug
@@ -431,7 +433,7 @@ where
 
 impl<K, T, R, O> Batch<K, (), T, R> for OrdKeyBatch<K, T, R, O>
 where
-    K: Ord+Clone+'static,
+    K: Ord+Clone+DdBorrow+'static,
     T: Lattice+timely::progress::Timestamp+Ord+Clone+'static,
     R: Semigroup,
     O: OrdOffset, <O as TryFrom<usize>>::Error: Debug, <O as TryInto<usize>>::Error: Debug
@@ -537,7 +539,7 @@ where
 
 impl<K, T, R, O> Merger<K, (), T, R, OrdKeyBatch<K, T, R, O>> for OrdKeyMerger<K, T, R, O>
 where
-    K: Ord+Clone+'static,
+    K: Ord+Clone+DdBorrow+'static,
     T: Lattice+timely::progress::Timestamp+Ord+Clone+'static,
     R: Semigroup,
     O: OrdOffset, <O as TryFrom<usize>>::Error: Debug, <O as TryInto<usize>>::Error: Debug
@@ -641,7 +643,7 @@ pub struct OrdKeyCursor<T: Lattice+Ord+Clone, R: Semigroup, O=usize> {
 
 impl<K, T, R, O> Cursor<K, (), T, R> for OrdKeyCursor<T, R, O>
 where
-    K: Ord+Clone,
+    K: Ord+Clone+DdBorrow,
     T: Lattice+Ord+Clone,
     R: Semigroup,
     O: OrdOffset, <O as TryFrom<usize>>::Error: Debug, <O as TryInto<usize>>::Error: Debug
@@ -649,7 +651,7 @@ where
 
     type Storage = OrdKeyBatch<K, T, R, O>;
 
-    fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K { &self.cursor.key(&storage.layer) }
+    fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K::Borrowed { self.cursor.key(&storage.layer).dd_borrow() }
     fn val<'a>(&self, _storage: &'a Self::Storage) -> &'a () { unsafe { ::std::mem::transmute(&self.empty) } }
     fn map_times<L: FnMut(&T, &R)>(&mut self, storage: &Self::Storage, mut logic: L) {
         self.cursor.child.rewind(&storage.layer.vals);
@@ -682,7 +684,7 @@ where
 
 impl<K, T, R, O> Builder<K, (), T, R, OrdKeyBatch<K, T, R, O>> for OrdKeyBuilder<K, T, R, O>
 where
-    K: Ord+Clone+'static,
+    K: Ord+Clone+DdBorrow+'static,
     T: Lattice+timely::progress::Timestamp+Ord+Clone+'static,
     R: Semigroup,
     O: OrdOffset, <O as TryFrom<usize>>::Error: Debug, <O as TryInto<usize>>::Error: Debug

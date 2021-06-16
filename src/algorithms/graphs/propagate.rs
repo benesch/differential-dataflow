@@ -50,6 +50,8 @@ where
 use trace::TraceReader;
 use operators::arrange::arrangement::Arranged;
 
+use crate::trace::cursor::DdBorrow;
+
 /// Propagates labels forward, retaining the minimum label.
 ///
 /// This variant takes a pre-arranged edge collection, to facilitate re-use, and allows
@@ -59,7 +61,7 @@ pub fn propagate_core<G, N, L, Tr, F, R>(edges: &Arranged<G,Tr>, nodes: &Collect
 where
     G: Scope,
     G::Timestamp: Lattice+Ord,
-    N: ExchangeData+Hash,
+    N: ExchangeData+Hash+DdBorrow,
     R: ExchangeData+Abelian,
     R: Multiply<R, Output=R>,
     R: From<i8>,

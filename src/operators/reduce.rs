@@ -26,6 +26,8 @@ use trace::implementations::ord::OrdKeySpine as DefaultKeyTrace;
 
 use trace::TraceReader;
 
+use crate::trace::cursor::DdBorrow;
+
 /// Extension trait for the `reduce` differential dataflow method.
 pub trait Reduce<G: Scope, K: Data, V: Data, R: Semigroup> where G::Timestamp: Lattice+Ord {
     /// Applies a reduction function on records grouped by key.
@@ -86,7 +88,7 @@ impl<G, K, V, R> Reduce<G, K, V, R> for Collection<G, (K, V), R>
     }
 }
 
-impl<G: Scope, K: Data, V: Data, T1, R: Semigroup> Reduce<G, K, V, R> for Arranged<G, T1>
+impl<G: Scope, K: Data + DdBorrow, V: Data, T1, R: Semigroup> Reduce<G, K, V, R> for Arranged<G, T1>
 where
     G::Timestamp: Lattice+Ord,
     T1: TraceReader<Key=K, Val=V, Time=G::Timestamp, R=R>+Clone+'static,
@@ -175,7 +177,7 @@ where G::Timestamp: Lattice+Ord {
     }
 }
 
-impl<G: Scope, K: Data, T1, R1: Semigroup> Threshold<G, K, R1> for Arranged<G, T1>
+impl<G: Scope, K: Data + DdBorrow, T1, R1: Semigroup> Threshold<G, K, R1> for Arranged<G, T1>
 where
     G::Timestamp: Lattice+Ord,
     T1: TraceReader<Key=K, Val=(), Time=G::Timestamp, R=R1>+Clone+'static,
@@ -223,7 +225,7 @@ where
     }
 }
 
-impl<G: Scope, K: Data, T1, R: Semigroup> Count<G, K, R> for Arranged<G, T1>
+impl<G: Scope, K: Data + DdBorrow, T1, R: Semigroup> Count<G, K, R> for Arranged<G, T1>
 where
     G::Timestamp: Lattice+Ord,
     T1: TraceReader<Key=K, Val=(), Time=G::Timestamp, R=R>+Clone+'static,
@@ -270,6 +272,7 @@ pub trait ReduceCore<G: Scope, K: Data, V: Data, R: Semigroup> where G::Timestam
     /// ```
     fn reduce_abelian<L, T2>(&self, name: &str, mut logic: L) -> Arranged<G, TraceAgent<T2>>
         where
+            K: DdBorrow,
             T2: Trace+TraceReader<Key=K, Time=G::Timestamp>+'static,
             T2::Val: Data,
             T2::R: Abelian,
@@ -293,6 +296,7 @@ pub trait ReduceCore<G: Scope, K: Data, V: Data, R: Semigroup> where G::Timestam
     /// At least one of the two collections will be non-empty.
     fn reduce_core<L, T2>(&self, name: &str, logic: L) -> Arranged<G, TraceAgent<T2>>
         where
+            K: DdBorrow,
             T2: Trace+TraceReader<Key=K, Time=G::Timestamp>+'static,
             T2::Val: Data,
             T2::R: Semigroup,
@@ -312,6 +316,7 @@ where
 {
     fn reduce_core<L, T2>(&self, name: &str, logic: L) -> Arranged<G, TraceAgent<T2>>
         where
+            K: DdBorrow,
             T2::Val: Data,
             T2::R: Semigroup,
             T2: Trace+TraceReader<Key=K, Time=G::Timestamp>+'static,
@@ -324,7 +329,7 @@ where
     }
 }
 
-impl<G: Scope, K: Data, V: Data, T1, R: Semigroup> ReduceCore<G, K, V, R> for Arranged<G, T1>
+impl<G: Scope, K: Data + DdBorrow, V: Data, T1, R: Semigroup> ReduceCore<G, K, V, R> for Arranged<G, T1>
 where
     G::Timestamp: Lattice+Ord,
     T1: TraceReader<Key=K, Val=V, Time=G::Timestamp, R=R>+Clone+'static,
@@ -672,7 +677,7 @@ where
         outputs: &mut [(T, Vec<(V2, T, R2)>)],
         new_interesting: &mut Vec<T>) -> (usize, usize)
     where
-        K: Eq+Clone,
+        K: Eq+Clone+DdBorrow,
         C1: Cursor<K, V1, T, R1>,
         C2: Cursor<K, V2, T, R2>,
         C3: Cursor<K, V1, T, R1>,
@@ -688,6 +693,8 @@ mod history_replay {
     use trace::Cursor;
     use operators::ValueHistory;
     use timely::progress::Antichain;
+
+    use crate::trace::cursor::DdBorrow;
 
     use super::{PerKeyCompute, sort_dedup};
 
@@ -750,7 +757,7 @@ mod history_replay {
             outputs: &mut [(T, Vec<(V2, T, R2)>)],
             new_interesting: &mut Vec<T>) -> (usize, usize)
         where
-            K: Eq+Clone,
+            K: Eq+Clone+DdBorrow,
             C1: Cursor<K, V1, T, R1>,
             C2: Cursor<K, V2, T, R2>,
             C3: Cursor<K, V1, T, R1>,

@@ -12,7 +12,7 @@ pub mod cursor_list;
 pub use self::cursor_list::CursorList;
 
 /// A cursor for navigating ordered `(key, val, time, diff)` updates.
-pub trait Cursor<K, V, T, R> {
+pub trait Cursor<K: DdBorrow, V, T, R> {
 
     /// Type the cursor addresses data in.
     type Storage;
@@ -27,12 +27,12 @@ pub trait Cursor<K, V, T, R> {
     fn val_valid(&self, storage: &Self::Storage) -> bool;
 
     /// A reference to the current key. Asserts if invalid.
-    fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K;
+    fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K::Borrowed;
     /// A reference to the current value. Asserts if invalid.
     fn val<'a>(&self, storage: &'a Self::Storage) -> &'a V;
 
     /// Returns a reference to the current key, if valid.
-    fn get_key<'a>(&self, storage: &'a Self::Storage) -> Option<&'a K> {
+    fn get_key<'a>(&self, storage: &'a Self::Storage) -> Option<&'a K::Borrowed> {
         if self.key_valid(storage) { Some(self.key(storage)) } else { None }
     }
     /// Returns a reference to the current value, if valid.
@@ -61,7 +61,7 @@ pub trait Cursor<K, V, T, R> {
 }
 
 /// Debugging and testing utilities for Cursor.
-pub trait CursorDebug<K: Clone, V: Clone, T: Clone, R: Clone> : Cursor<K, V, T, R> {
+pub trait CursorDebug<K: Clone + DdBorrow, V: Clone, T: Clone, R: Clone> : Cursor<K, V, T, R> {
     /// Rewinds the cursor and outputs its contents to a Vec
     fn to_vec(&mut self, storage: &Self::Storage) -> Vec<((K, V), Vec<(T, R)>)> {
         let mut out = Vec::new();
@@ -73,7 +73,7 @@ pub trait CursorDebug<K: Clone, V: Clone, T: Clone, R: Clone> : Cursor<K, V, T, 
                 self.map_times(storage, |ts, r| {
                     kv_out.push((ts.clone(), r.clone()));
                 });
-                out.push(((self.key(storage).clone(), self.val(storage).clone()), kv_out));
+                out.push(((self.key(storage).dd_to_owned(), self.val(storage).clone()), kv_out));
                 self.step_val(storage);
             }
             self.step_key(storage);
@@ -82,4 +82,34 @@ pub trait CursorDebug<K: Clone, V: Clone, T: Clone, R: Clone> : Cursor<K, V, T, 
     }
 }
 
-impl<C, K: Clone, V: Clone, T: Clone, R: Clone> CursorDebug<K, V, T, R> for C where C: Cursor<K, V, T, R> { }
+impl<C, K: Clone + DdBorrow, V: Clone, T: Clone, R: Clone> CursorDebug<K, V, T, R> for C where C: Cursor<K, V, T, R> { }
+
+/// No
+pub trait DdBorrow {
+    /// Still no.
+    type Borrowed: ?Sized + DdToOwned<Owned = Self>;
+
+    fn dd_borrow(&self) -> &Self::Borrowed;
+}
+
+impl DdBorrow for Vec<u8> {
+    type Borrowed = [u8];
+
+    fn dd_borrow(&self) -> &Self::Borrowed {
+        self
+    }
+}
+
+pub trait DdToOwned {
+    type Owned;
+
+    fn dd_to_owned(&self) -> Self::Owned;
+}
+
+impl DdToOwned for [u8] {
+    type Owned = Vec<u8>;
+
+    fn dd_to_owned(&self) -> Self::Owned {
+        self.to_vec()
+    }
+}

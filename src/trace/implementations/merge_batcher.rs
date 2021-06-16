@@ -8,7 +8,7 @@ use lattice::Lattice;
 use trace::{Batch, Batcher, Builder};
 
 /// Creates batches from unordered tuples.
-pub struct MergeBatcher<K: Ord, V: Ord, T: Ord, R: Semigroup, B: Batch<K, V, T, R>> {
+pub struct MergeBatcher<K: Ord + DdBorrow, V: Ord, T: Ord, R: Semigroup, B: Batch<K, V, T, R>> {
     sorter: MergeSorter<(K, V), T, R>,
     lower: Antichain<T>,
     frontier: Antichain<T>,
@@ -17,7 +17,7 @@ pub struct MergeBatcher<K: Ord, V: Ord, T: Ord, R: Semigroup, B: Batch<K, V, T, 
 
 impl<K, V, T, R, B> Batcher<K, V, T, R, B> for MergeBatcher<K, V, T, R, B>
 where
-    K: Ord+Clone,
+    K: Ord+Clone+DdBorrow,
     V: Ord+Clone,
     T: Lattice+timely::progress::Timestamp+Ord+Clone,
     R: Semigroup,
@@ -110,6 +110,8 @@ where
 
 
 use std::slice::{from_raw_parts};
+
+use crate::trace::cursor::DdBorrow;
 
 pub struct VecQueue<T> {
     list: Vec<T>,

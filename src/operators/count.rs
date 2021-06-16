@@ -26,6 +26,8 @@ use collection::AsCollection;
 use operators::arrange::{Arranged, ArrangeBySelf};
 use trace::{BatchReader, Cursor, TraceReader};
 
+use crate::trace::cursor::DdBorrow;
+
 /// Extension trait for the `count` differential dataflow method.
 pub trait CountTotal<G: Scope, K: ExchangeData, R: Semigroup> where G::Timestamp: TotalOrder+Lattice+Ord {
     /// Counts the number of occurrences of each element.
@@ -67,6 +69,7 @@ where
     T1::R: ExchangeData+Semigroup,
     T1::Batch: BatchReader<T1::Key, (), G::Timestamp, T1::R>,
     T1::Cursor: Cursor<T1::Key, (), G::Timestamp, T1::R>,
+    T1::Key: DdBorrow,
 {
     fn count_total(&self) -> Collection<G, (T1::Key, T1::R), isize> {
 

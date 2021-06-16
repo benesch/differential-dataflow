@@ -28,6 +28,8 @@ use lattice::Lattice;
 use trace::{TraceReader, BatchReader, Description};
 use trace::cursor::Cursor;
 
+use crate::trace::cursor::DdBorrow;
+
 /// Freezes updates to an arrangement using a supplied function.
 ///
 /// This method is experimental, and should be used with care. The intent is that the function
@@ -38,7 +40,7 @@ where
     G: Scope,
     G::Timestamp: Lattice+Ord,
     T: TraceReader<Time=G::Timestamp>+Clone,
-    T::Key: 'static,
+    T::Key: 'static + DdBorrow,
     T::Val: 'static,
     T::R: 'static,
     T::Batch: BatchReader<T::Key, T::Val, G::Timestamp, T::R>,
@@ -82,7 +84,7 @@ impl<Tr, F> TraceReader for TraceFreeze<Tr, F>
 where
     Tr: TraceReader,
     Tr::Batch: Clone,
-    Tr::Key: 'static,
+    Tr::Key: 'static + DdBorrow,
     Tr::Val: 'static,
     Tr::Time: Lattice+Clone+'static,
     Tr::R: 'static,
@@ -155,6 +157,7 @@ impl<K, V, T: Clone, R, B: Clone, F> Clone for BatchFreeze<K, V, T, R, B, F> {
 
 impl<K, V, T, R, B, F> BatchReader<K, V, T, R> for BatchFreeze<K, V, T, R, B, F>
 where
+    K: DdBorrow,
     B: BatchReader<K, V, T, R>,
     T: Clone,
     F: Fn(&T)->Option<T>,
@@ -170,6 +173,7 @@ where
 
 impl<K, V, T, R, B, F> BatchFreeze<K, V, T, R, B, F>
 where
+    K: DdBorrow,
     B: BatchReader<K, V, T, R>,
     T: Clone,
     F: Fn(&T)->Option<T>
@@ -185,13 +189,13 @@ where
 }
 
 /// Wrapper to provide cursor to nested scope.
-pub struct CursorFreeze<K, V, T, R, C: Cursor<K, V, T, R>, F> {
+pub struct CursorFreeze<K: DdBorrow, V, T, R, C: Cursor<K, V, T, R>, F> {
     phantom: ::std::marker::PhantomData<(K, V, R, T)>,
     cursor: C,
     func: Rc<F>,
 }
 
-impl<K, V, T, R, C: Cursor<K, V, T, R>, F> CursorFreeze<K, V, T, R, C, F> {
+impl<K: DdBorrow, V, T, R, C: Cursor<K, V, T, R>, F> CursorFreeze<K, V, T, R, C, F> {
     fn new(cursor: C, func: Rc<F>) -> Self {
         CursorFreeze {
             phantom: ::std::marker::PhantomData,
@@ -203,6 +207,7 @@ impl<K, V, T, R, C: Cursor<K, V, T, R>, F> CursorFreeze<K, V, T, R, C, F> {
 
 impl<K, V, T, R, C, F> Cursor<K, V, T, R> for CursorFreeze<K, V, T, R, C, F>
 where
+    K: DdBorrow,
     C: Cursor<K, V, T, R>,
     F: Fn(&T)->Option<T>,
 {
@@ -212,7 +217,7 @@ where
     #[inline] fn key_valid(&self, storage: &Self::Storage) -> bool { self.cursor.key_valid(storage) }
     #[inline] fn val_valid(&self, storage: &Self::Storage) -> bool { self.cursor.val_valid(storage) }
 
-    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K { self.cursor.key(storage) }
+    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K::Borrowed { self.cursor.key(storage) }
     #[inline] fn val<'a>(&self, storage: &'a Self::Storage) -> &'a V { self.cursor.val(storage) }
 
     #[inline] fn map_times<L: FnMut(&T, &R)>(&mut self, storage: &Self::Storage, mut logic: L) {
@@ -236,13 +241,13 @@ where
 
 
 /// Wrapper to provide cursor to nested scope.
-pub struct BatchCursorFreeze<K, V, T, R, B: BatchReader<K, V, T, R>, F> {
+pub struct BatchCursorFreeze<K: DdBorrow, V, T, R, B: BatchReader<K, V, T, R>, F> {
     phantom: ::std::marker::PhantomData<(K, V, R, T)>,
     cursor: B::Cursor,
     func: Rc<F>,
 }
 
-impl<K, V, T, R, B: BatchReader<K, V, T, R>, F> BatchCursorFreeze<K, V, T, R, B, F> {
+impl<K: DdBorrow, V, T, R, B: BatchReader<K, V, T, R>, F> BatchCursorFreeze<K, V, T, R, B, F> {
     fn new(cursor: B::Cursor, func: Rc<F>) -> Self {
         BatchCursorFreeze {
             phantom: ::std::marker::PhantomData,
@@ -252,7 +257,7 @@ impl<K, V, T, R, B: BatchReader<K, V, T, R>, F> BatchCursorFreeze<K, V, T, R, B,
     }
 }
 
-impl<K, V, T, R, B: BatchReader<K, V, T, R>, F> Cursor<K, V, T, R> for BatchCursorFreeze<K, V, T, R, B, F>
+impl<K: DdBorrow, V, T, R, B: BatchReader<K, V, T, R>, F> Cursor<K, V, T, R> for BatchCursorFreeze<K, V, T, R, B, F>
 where
     F: Fn(&T)->Option<T>,
 {
@@ -262,7 +267,7 @@ where
     #[inline] fn key_valid(&self, storage: &Self::Storage) -> bool { self.cursor.key_valid(&storage.batch) }
     #[inline] fn val_valid(&self, storage: &Self::Storage) -> bool { self.cursor.val_valid(&storage.batch) }
 
-    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K { self.cursor.key(&storage.batch) }
+    #[inline] fn key<'a>(&self, storage: &'a Self::Storage) -> &'a K::Borrowed { self.cursor.key(&storage.batch) }
     #[inline] fn val<'a>(&self, storage: &'a Self::Storage) -> &'a V { self.cursor.val(&storage.batch) }
 
     #[inline] fn map_times<L: FnMut(&T, &R)>(&mut self, storage: &Self::Storage, mut logic: L) {

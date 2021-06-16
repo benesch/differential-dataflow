@@ -123,6 +123,8 @@ use trace::Builder;
 
 use operators::arrange::arrangement::Arranged;
 
+use crate::trace::cursor::{DdBorrow, DdToOwned};
+
 use super::TraceAgent;
 
 /// Arrange data from a stream of keyed upserts.
@@ -147,6 +149,7 @@ where
     Tr: Trace+TraceReader<Time=G::Timestamp,R=isize>+'static,
     Tr::Batch: Batch<Tr::Key, Tr::Val, G::Timestamp, isize>,
     Tr::Cursor: Cursor<Tr::Key, Tr::Val, G::Timestamp, isize>,
+    Tr::Key: DdBorrow,
 {
     let mut reader: Option<TraceAgent<Tr>> = None;
 
@@ -258,7 +261,7 @@ where
 
                                     // Attempt to find the key in the trace.
                                     trace_cursor.seek_key(&trace_storage, &key);
-                                    if trace_cursor.get_key(&trace_storage) == Some(&key) {
+                                    if trace_cursor.get_key(&trace_storage).map(|k| k.dd_to_owned()).as_ref() == Some(&key) {
                                         // Determine the prior value associated with the key.
                                         while let Some(val) = trace_cursor.get_val(&trace_storage) {
                                             let mut count = 0;

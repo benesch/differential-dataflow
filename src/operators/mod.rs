@@ -4,6 +4,8 @@
 //! operators have specialized implementations to make them work efficiently, and are in addition
 //! to several operations defined directly on the `Collection` type (e.g. `map` and `filter`).
 
+use crate::trace::cursor::DdBorrow;
+
 pub use self::reduce::{Reduce, Threshold, Count};
 pub use self::consolidate::Consolidate;
 pub use self::iterate::Iterate;
@@ -40,7 +42,7 @@ impl<'a, V:'a, T, R> EditList<'a, V, T, R> where T: Ord+Clone, R: Semigroup {
     }
     /// Loads the contents of a cursor.
     fn load<K, C, L>(&mut self, cursor: &mut C, storage: &'a C::Storage, logic: L)
-    where K: Eq, V: Clone, C: Cursor<K, V, T, R>, L: Fn(&T)->T {
+    where K: Eq+DdBorrow, V: Clone, C: Cursor<K, V, T, R>, L: Fn(&T)->T {
         self.clear();
         while cursor.val_valid(storage) {
             cursor.map_times(storage, |time1, diff1| self.push(logic(time1), diff1.clone()));
@@ -103,7 +105,7 @@ impl<'storage, V: Ord+Clone+'storage, T: Lattice+Ord+Clone, R: Semigroup> ValueH
         self.buffer.clear();
     }
     fn load<K, C, L>(&mut self, cursor: &mut C, storage: &'storage C::Storage, logic: L)
-    where K: Eq, C: Cursor<K, V, T, R>, L: Fn(&T)->T {
+    where K: Eq+DdBorrow, C: Cursor<K, V, T, R>, L: Fn(&T)->T {
         self.edits.load(cursor, storage, logic);
     }
 
@@ -117,7 +119,7 @@ impl<'storage, V: Ord+Clone+'storage, T: Lattice+Ord+Clone, R: Semigroup> ValueH
         key: &K,
         logic: L
     ) -> HistoryReplay<'storage, 'history, V, T, R>
-    where K: Eq, C: Cursor<K, V, T, R>, L: Fn(&T)->T
+    where K: Eq+DdBorrow, C: Cursor<K, V, T, R>, L: Fn(&T)->T
     {
         self.clear();
         cursor.seek_key(storage, key);

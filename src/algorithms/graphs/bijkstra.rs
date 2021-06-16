@@ -34,6 +34,7 @@ where
 
 use crate::trace::TraceReader;
 use crate::operators::arrange::Arranged;
+use crate::trace::cursor::DdBorrow;
 
 /// Bi-directional Dijkstra search using arranged forward and reverse edge collections.
 pub fn bidijkstra_arranged<G, N, Tr>(
@@ -44,7 +45,7 @@ pub fn bidijkstra_arranged<G, N, Tr>(
 where
     G: Scope,
     G::Timestamp: Lattice+Ord,
-    N: ExchangeData+Hash,
+    N: ExchangeData+Hash+DdBorrow,
     Tr: TraceReader<Key=N, Val=N, Time=G::Timestamp, R=isize>+Clone+'static,
     Tr::Batch: crate::trace::BatchReader<N, N, G::Timestamp, Tr::R>+'static,
     Tr::Cursor: crate::trace::Cursor<N, N, G::Timestamp, Tr::R>+'static,

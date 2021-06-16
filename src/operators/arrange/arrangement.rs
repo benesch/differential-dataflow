@@ -38,6 +38,8 @@ use trace::wrappers::enter_at::TraceEnter as TraceEnterAt;
 use trace::wrappers::enter_at::BatchEnter as BatchEnterAt;
 use trace::wrappers::filter::{TraceFilter, BatchFilter};
 
+use crate::trace::cursor::{DdBorrow, DdToOwned};
+
 use super::TraceAgent;
 
 /// An arranged collection of `(K,V)` values.
@@ -48,6 +50,7 @@ pub struct Arranged<G: Scope, Tr>
 where
     G::Timestamp: Lattice+Ord,
     Tr: TraceReader+Clone,
+    Tr::Key: DdBorrow,
 {
     /// A stream containing arranged updates.
     ///
@@ -67,6 +70,7 @@ where
     Tr: TraceReader<Time=G::Timestamp> + Clone,
     Tr::Batch: BatchReader<Tr::Key, Tr::Val, G::Timestamp, Tr::R>,
     Tr::Cursor: Cursor<Tr::Key, Tr::Val, G::Timestamp, Tr::R>,
+    Tr::Key: DdBorrow,
 {
     fn clone(&self) -> Self {
         Arranged {
@@ -85,6 +89,7 @@ where
     Tr: TraceReader<Time=G::Timestamp> + Clone,
     Tr::Batch: BatchReader<Tr::Key, Tr::Val, G::Timestamp, Tr::R>,
     Tr::Cursor: Cursor<Tr::Key, Tr::Val, G::Timestamp, Tr::R>,
+    Tr::Key: DdBorrow,
 {
     /// Brings an arranged collection into a nested scope.
     ///
@@ -243,8 +248,9 @@ where
                     let batch = &wrapper;
                     let mut cursor = batch.cursor();
                     while let Some(key) = cursor.get_key(batch) {
+                        let key = key.dd_to_owned();
                         while let Some(val) = cursor.get_val(batch) {
-                            for datum in logic(key, val) {
+                            for datum in logic(&key, val) {
                                 cursor.map_times(batch, |time, diff| {
                                     session.give((datum.clone(), time.clone(), diff.clone()));
                                 });
@@ -352,7 +358,7 @@ where
                             }
 
                             cursor.seek_key(&storage, key);
-                            if cursor.get_key(&storage) == Some(key) {
+                            if cursor.get_key(&storage).map(|k| k.dd_to_owned()).as_ref() == Some(key) {
 
                                 let mut active = &active[active_finger .. same_key];
 
@@ -427,6 +433,7 @@ where
     Tr: TraceReader<Time=G::Timestamp> + Clone,
     Tr::Batch: BatchReader<Tr::Key, Tr::Val, G::Timestamp, Tr::R>,
     Tr::Cursor: Cursor<Tr::Key, Tr::Val, G::Timestamp, Tr::R>,
+    Tr::Key: DdBorrow,
 {
     /// Brings an arranged collection out of a nested region.
     ///
@@ -464,6 +471,7 @@ where
         Tr: Trace+TraceReader<Key=K,Val=V,Time=G::Timestamp,R=R>+'static,
         Tr::Batch: Batch<K, V, G::Timestamp, R>,
         Tr::Cursor: Cursor<K, V, G::Timestamp, R>,
+        Tr::Key: DdBorrow,
     {
         self.arrange_named("Arrange")
     }
@@ -481,6 +489,7 @@ where
         Tr: Trace+TraceReader<Key=K,Val=V,Time=G::Timestamp,R=R>+'static,
         Tr::Batch: Batch<K, V, G::Timestamp, R>,
         Tr::Cursor: Cursor<K, V, G::Timestamp, R>,
+        Tr::Key: DdBorrow,
     {
         let exchange = Exchange::new(move |update: &((K,V),G::Timestamp,R)| (update.0).0.hashed().into());
         self.arrange_core(exchange, name)
@@ -497,6 +506,7 @@ where
         Tr: Trace+TraceReader<Key=K,Val=V,Time=G::Timestamp,R=R>+'static,
         Tr::Batch: Batch<K, V, G::Timestamp, R>,
         Tr::Cursor: Cursor<K, V, G::Timestamp, R>,
+        Tr::Key: DdBorrow,
     ;
 }
 
@@ -514,6 +524,7 @@ where
         Tr: Trace+TraceReader<Key=K,Val=V,Time=G::Timestamp,R=R>+'static,
         Tr::Batch: Batch<K, V, G::Timestamp, R>,
         Tr::Cursor: Cursor<K, V, G::Timestamp, R>,
+        Tr::Key: DdBorrow,
     {
         // The `Arrange` operator is tasked with reacting to an advancing input
         // frontier by producing the sequence of batches whose lower and upper
@@ -688,6 +699,7 @@ where
         Tr: Trace+TraceReader<Key=K, Val=(), Time=G::Timestamp, R=R>+'static,
         Tr::Batch: Batch<K, (), G::Timestamp, R>,
         Tr::Cursor: Cursor<K, (), G::Timestamp, R>,
+        Tr::Key: DdBorrow,
     {
         self.map(|k| (k, ()))
             .arrange_core(pact, name)
@@ -699,7 +711,7 @@ where
 /// This arrangement requires `Key: Hashable`, and uses the `hashed()` method to place keys in a hashed
 /// map. This can result in many hash calls, and in some cases it may help to first transform `K` to the
 /// pair `(u64, K)` of hash value and key.
-pub trait ArrangeByKey<G: Scope, K: Data+Hashable, V: Data, R: Semigroup>
+pub trait ArrangeByKey<G: Scope, K: Data+Hashable+DdBorrow, V: Data, R: Semigroup>
 where G::Timestamp: Lattice+Ord {
     /// Arranges a collection of `(Key, Val)` records by `Key`.
     ///
@@ -712,7 +724,7 @@ where G::Timestamp: Lattice+Ord {
     fn arrange_by_key_named(&self, name: &str) -> Arranged<G, TraceAgent<DefaultValTrace<K, V, G::Timestamp, R>>>;
 }
 
-impl<G: Scope, K: ExchangeData+Hashable, V: ExchangeData, R: ExchangeData+Semigroup> ArrangeByKey<G, K, V, R> for Collection<G, (K,V), R>
+impl<G: Scope, K: ExchangeData+Hashable+DdBorrow, V: ExchangeData, R: ExchangeData+Semigroup> ArrangeByKey<G, K, V, R> for Collection<G, (K,V), R>
 where
     G::Timestamp: Lattice+Ord
 {
@@ -730,7 +742,7 @@ where
 /// This arrangement requires `Key: Hashable`, and uses the `hashed()` method to place keys in a hashed
 /// map. This can result in many hash calls, and in some cases it may help to first transform `K` to the
 /// pair `(u64, K)` of hash value and key.
-pub trait ArrangeBySelf<G: Scope, K: Data+Hashable, R: Semigroup>
+pub trait ArrangeBySelf<G: Scope, K: Data+Hashable+DdBorrow, R: Semigroup>
 where
     G::Timestamp: Lattice+Ord
 {
@@ -746,7 +758,7 @@ where
 }
 
 
-impl<G: Scope, K: ExchangeData+Hashable, R: ExchangeData+Semigroup> ArrangeBySelf<G, K, R> for Collection<G, K, R>
+impl<G: Scope, K: ExchangeData+Hashable+DdBorrow, R: ExchangeData+Semigroup> ArrangeBySelf<G, K, R> for Collection<G, K, R>
 where
     G::Timestamp: Lattice+Ord
 {
