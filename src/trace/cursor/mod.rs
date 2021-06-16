@@ -47,7 +47,7 @@ pub trait Cursor<K: DdBorrow, V, T, R> {
     /// Advances the cursor to the next key.
     fn step_key(&mut self, storage: &Self::Storage);
     /// Advances the cursor to the specified key.
-    fn seek_key(&mut self, storage: &Self::Storage, key: &K);
+    fn seek_key(&mut self, storage: &Self::Storage, key: &K::Borrowed);
 
     /// Advances the cursor to the next value.
     fn step_val(&mut self, storage: &Self::Storage);
@@ -87,7 +87,7 @@ impl<C, K: Clone + DdBorrow, V: Clone, T: Clone, R: Clone> CursorDebug<K, V, T, 
 /// No
 pub trait DdBorrow {
     /// Still no.
-    type Borrowed: ?Sized + DdToOwned<Owned = Self>;
+    type Borrowed: ?Sized + DdToOwned<Owned = Self> + Ord + Eq;
 
     fn dd_borrow(&self) -> &Self::Borrowed;
 }
@@ -113,3 +113,6 @@ impl DdToOwned for [u8] {
         self.to_vec()
     }
 }
+
+    // K: Deref,
+    // <K as Deref>::Target: ToOwned<Owned = K>,

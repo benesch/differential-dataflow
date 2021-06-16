@@ -78,7 +78,7 @@ where
             (true, true) => self.cursor1.key(&storage.0).dd_to_owned().cmp(&self.cursor2.key(&storage.1).dd_to_owned()),
         };
     }
-    fn seek_key(&mut self, storage: &Self::Storage, key: &K) {
+    fn seek_key(&mut self, storage: &Self::Storage, key: &K::Borrowed) {
 
         self.cursor1.seek_key(&storage.0, key);
         self.cursor2.seek_key(&storage.1, key);

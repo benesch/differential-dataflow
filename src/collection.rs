@@ -21,6 +21,8 @@ use ::difference::{Semigroup, Abelian, Multiply};
 use lattice::Lattice;
 use hashable::Hashable;
 
+use crate::trace::cursor::DdBorrow;
+
 /// A mutable collection of values of type `D`
 ///
 /// The `Collection` type is the core abstraction in differential dataflow programs. As you write your
@@ -527,7 +529,7 @@ impl<G: Scope, D: Data, R: Semigroup> Collection<G, D, R> where G::Timestamp: Da
     /// }
     /// ```
     pub fn assert_empty(&self)
-    where D: ::ExchangeData+Hashable,
+    where D: ::ExchangeData+Hashable+DdBorrow,
           R: ::ExchangeData+Hashable,
           G::Timestamp: Lattice+Ord,
     {
@@ -660,7 +662,7 @@ impl<G: Scope, D: Data, R: Abelian> Collection<G, D, R> where G::Timestamp: Data
     /// }
     /// ```
     pub fn assert_eq(&self, other: &Self)
-    where D: ::ExchangeData+Hashable,
+    where D: ::ExchangeData+Hashable+DdBorrow,
           R: ::ExchangeData+Hashable,
           G::Timestamp: Lattice+Ord
     {

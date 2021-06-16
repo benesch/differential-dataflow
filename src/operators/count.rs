@@ -27,6 +27,7 @@ use operators::arrange::{Arranged, ArrangeBySelf};
 use trace::{BatchReader, Cursor, TraceReader};
 
 use crate::trace::cursor::DdBorrow;
+use crate::trace::cursor::DdToOwned;
 
 /// Extension trait for the `count` differential dataflow method.
 pub trait CountTotal<G: Scope, K: ExchangeData, R: Semigroup> where G::Timestamp: TotalOrder+Lattice+Ord {
@@ -53,7 +54,7 @@ pub trait CountTotal<G: Scope, K: ExchangeData, R: Semigroup> where G::Timestamp
     fn count_total(&self) -> Collection<G, (K, R), isize>;
 }
 
-impl<G: Scope, K: ExchangeData+Hashable, R: ExchangeData+Semigroup> CountTotal<G, K, R> for Collection<G, K, R>
+impl<G: Scope, K: ExchangeData+Hashable+DdBorrow, R: ExchangeData+Semigroup> CountTotal<G, K, R> for Collection<G, K, R>
 where G::Timestamp: TotalOrder+Lattice+Ord {
     fn count_total(&self) -> Collection<G, (K, R), isize> {
         self.arrange_by_self_named("Arrange: CountTotal")
@@ -65,11 +66,10 @@ impl<G: Scope, T1> CountTotal<G, T1::Key, T1::R> for Arranged<G, T1>
 where
     G::Timestamp: TotalOrder+Lattice+Ord,
     T1: TraceReader<Val=(), Time=G::Timestamp>+Clone+'static,
-    T1::Key: ExchangeData,
+    T1::Key: ExchangeData+DdBorrow,
     T1::R: ExchangeData+Semigroup,
     T1::Batch: BatchReader<T1::Key, (), G::Timestamp, T1::R>,
     T1::Cursor: Cursor<T1::Key, (), G::Timestamp, T1::R>,
-    T1::Key: DdBorrow,
 {
     fn count_total(&self) -> Collection<G, (T1::Key, T1::R), isize> {
 
@@ -108,14 +108,14 @@ where
 
                                 if let Some(count) = count.as_ref() {
                                     if !count.is_zero() {
-                                        session.give(((key.clone(), count.clone()), time.clone(), -1));
+                                        session.give(((key.dd_to_owned(), count.clone()), time.clone(), -1));
                                     }
                                 }
                                 count.as_mut().map(|c| c.plus_equals(diff));
                                 if count.is_none() { count = Some(diff.clone()); }
                                 if let Some(count) = count.as_ref() {
                                     if !count.is_zero() {
-                                        session.give(((key.clone(), count.clone()), time.clone(), 1));
+                                        session.give(((key.dd_to_owned(), count.clone()), time.clone(), 1));
                                     }
                                 }
                             });

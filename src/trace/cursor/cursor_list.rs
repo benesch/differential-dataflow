@@ -1,6 +1,6 @@
 //! A generic cursor implementation merging multiple cursors.
 
-use super::{Cursor, DdBorrow, DdToOwned};
+use super::{Cursor, DdBorrow};
 
 /// Provides a cursor interface over a list of cursors.
 ///
@@ -45,7 +45,7 @@ impl<K: DdBorrow, V, T, R, C: Cursor<K, V, T, R>> CursorList<K, V, T, R, C> wher
         // Determine the index of the cursor with minimum key.
         let mut min_key_opt = None;
         for (index, cursor) in self.cursors.iter().enumerate() {
-            let key = cursor.get_key(&storage[index]).map(|k| k.dd_to_owned());
+            let key = cursor.get_key(&storage[index]);
             if key.is_some() {
                 if min_key_opt.is_none() || key.lt(&min_key_opt) {
                     min_key_opt = key;
@@ -130,7 +130,7 @@ where
         self.minimize_keys(storage);
     }
     #[inline]
-    fn seek_key(&mut self, storage: &Self::Storage, key: &K) {
+    fn seek_key(&mut self, storage: &Self::Storage, key: &K::Borrowed) {
         for index in 0 .. self.cursors.len() {
             self.cursors[index].seek_key(&storage[index], key);
         }

@@ -12,6 +12,8 @@ use ::{Collection, ExchangeData, Hashable};
 use ::difference::Semigroup;
 use operators::arrange::arrangement::Arrange;
 
+use crate::trace::cursor::DdBorrow;
+
 /// An extension method for consolidating weighted streams.
 pub trait Consolidate<D: ExchangeData+Hashable> : Sized {
     /// Aggregates the weights of equal records into at most one record.
@@ -50,7 +52,7 @@ pub trait Consolidate<D: ExchangeData+Hashable> : Sized {
 
 impl<G: Scope, D, R> Consolidate<D> for Collection<G, D, R>
 where
-    D: ExchangeData+Hashable,
+    D: ExchangeData+Hashable+DdBorrow,
     R: ExchangeData+Semigroup,
     G::Timestamp: ::lattice::Lattice+Ord,
  {

@@ -28,7 +28,7 @@ use trace::description::Description;
 
 use trace::layers::MergeBuilder;
 
-use crate::trace::cursor::DdBorrow;
+use crate::trace::cursor::{DdBorrow, DdToOwned};
 
 // use super::spine::Spine;
 use super::spine_fueled::Spine;
@@ -340,7 +340,7 @@ where
     fn key_valid(&self, storage: &Self::Storage) -> bool { self.cursor.valid(&storage.layer) }
     fn val_valid(&self, storage: &Self::Storage) -> bool { self.cursor.child.valid(&storage.layer.vals) }
     fn step_key(&mut self, storage: &Self::Storage){ self.cursor.step(&storage.layer); }
-    fn seek_key(&mut self, storage: &Self::Storage, key: &K) { self.cursor.seek(&storage.layer, key); }
+    fn seek_key(&mut self, storage: &Self::Storage, key: &K::Borrowed) { self.cursor.seek(&storage.layer, &key.dd_to_owned()); }
     fn step_val(&mut self, storage: &Self::Storage) { self.cursor.child.step(&storage.layer.vals); }
     fn seek_val(&mut self, storage: &Self::Storage, val: &V) { self.cursor.child.seek(&storage.layer.vals, val); }
     fn rewind_keys(&mut self, storage: &Self::Storage) { self.cursor.rewind(&storage.layer); }
@@ -663,7 +663,7 @@ where
     fn key_valid(&self, storage: &Self::Storage) -> bool { self.cursor.valid(&storage.layer) }
     fn val_valid(&self, _storage: &Self::Storage) -> bool { self.valid }
     fn step_key(&mut self, storage: &Self::Storage){ self.cursor.step(&storage.layer); self.valid = true; }
-    fn seek_key(&mut self, storage: &Self::Storage, key: &K) { self.cursor.seek(&storage.layer, key); self.valid = true; }
+    fn seek_key(&mut self, storage: &Self::Storage, key: &K::Borrowed) { self.cursor.seek(&storage.layer, &key.dd_to_owned()); self.valid = true; }
     fn step_val(&mut self, _storage: &Self::Storage) { self.valid = false; }
     fn seek_val(&mut self, _storage: &Self::Storage, _val: &()) { }
     fn rewind_keys(&mut self, storage: &Self::Storage) { self.cursor.rewind(&storage.layer); self.valid = true; }

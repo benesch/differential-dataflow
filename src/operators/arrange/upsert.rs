@@ -260,7 +260,7 @@ where
                                     let mut prev_value: Option<Tr::Val> = None;
 
                                     // Attempt to find the key in the trace.
-                                    trace_cursor.seek_key(&trace_storage, &key);
+                                    trace_cursor.seek_key(&trace_storage, key.dd_borrow());
                                     if trace_cursor.get_key(&trace_storage).map(|k| k.dd_to_owned()).as_ref() == Some(&key) {
                                         // Determine the prior value associated with the key.
                                         while let Some(val) = trace_cursor.get_val(&trace_storage) {

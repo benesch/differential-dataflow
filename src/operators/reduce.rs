@@ -26,7 +26,7 @@ use trace::implementations::ord::OrdKeySpine as DefaultKeyTrace;
 
 use trace::TraceReader;
 
-use crate::trace::cursor::DdBorrow;
+use crate::trace::cursor::{DdBorrow, DdToOwned};
 
 /// Extension trait for the `reduce` differential dataflow method.
 pub trait Reduce<G: Scope, K: Data, V: Data, R: Semigroup> where G::Timestamp: Lattice+Ord {
@@ -77,7 +77,7 @@ impl<G, K, V, R> Reduce<G, K, V, R> for Collection<G, (K, V), R>
     where
         G: Scope,
         G::Timestamp: Lattice+Ord,
-        K: ExchangeData+Hashable,
+        K: ExchangeData+Hashable+DdBorrow,
         V: ExchangeData,
         R: ExchangeData+Semigroup,
  {
@@ -169,7 +169,7 @@ pub trait Threshold<G: Scope, K: Data, R1: Semigroup> where G::Timestamp: Lattic
     }
 }
 
-impl<G: Scope, K: ExchangeData+Hashable, R1: ExchangeData+Semigroup> Threshold<G, K, R1> for Collection<G, K, R1>
+impl<G: Scope, K: ExchangeData+Hashable+DdBorrow, R1: ExchangeData+Semigroup> Threshold<G, K, R1> for Collection<G, K, R1>
 where G::Timestamp: Lattice+Ord {
     fn threshold_named<R2: Abelian, F: FnMut(&K,&R1)->R2+'static>(&self, name: &str, thresh: F) -> Collection<G, K, R2> {
         self.arrange_by_self_named(&format!("Arrange: {}", name))
@@ -215,7 +215,7 @@ pub trait Count<G: Scope, K: Data, R: Semigroup> where G::Timestamp: Lattice+Ord
     fn count(&self) -> Collection<G, (K, R), isize>;
 }
 
-impl<G: Scope, K: ExchangeData+Hashable, R: ExchangeData+Semigroup> Count<G, K, R> for Collection<G, K, R>
+impl<G: Scope, K: ExchangeData+Hashable+DdBorrow, R: ExchangeData+Semigroup> Count<G, K, R> for Collection<G, K, R>
 where
     G::Timestamp: Lattice+Ord,
 {
@@ -507,7 +507,7 @@ where
 
                                 // Determine the next key we will work on; could be synthetic, could be from a batch.
                                 let key1 = exposed.get(exposed_position).map(|x| x.0.clone());
-                                let key2 = batch_cursor.get_key(&batch_storage).map(|k| k.clone());
+                                let key2 = batch_cursor.get_key(&batch_storage).map(|k| k.dd_to_owned());
                                 let key = match (key1, key2) {
                                     (Some(key1), Some(key2)) => ::std::cmp::min(key1, key2),
                                     (Some(key1), None)       => key1,
@@ -543,7 +543,7 @@ where
                                     &mut new_interesting_times,
                                 );
 
-                                if batch_cursor.get_key(batch_storage) == Some(&key) {
+                                if batch_cursor.get_key(batch_storage) == Some(key.dd_borrow()) {
                                     batch_cursor.step_key(batch_storage);
                                 }
 
@@ -773,7 +773,7 @@ mod history_replay {
             // loaded times by performing the lattice `join` with this value.
 
             // Load the batch contents.
-            let mut batch_replay = self.batch_history.replay_key(batch_cursor, batch_storage, key, |time| time.clone());
+            let mut batch_replay = self.batch_history.replay_key(batch_cursor, batch_storage, key.dd_borrow(), |time| time.clone());
 
             // We determine the meet of times we must reconsider (those from `batch` and `times`). This meet
             // can be used to advance other historical times, which may consolidate their representation. As
@@ -809,16 +809,16 @@ mod history_replay {
 
             // Load the input and output histories.
             let mut input_replay = if let Some(meet) = meet.as_ref() {
-                self.input_history.replay_key(source_cursor, source_storage, key, |time| time.join(&meet))
+                self.input_history.replay_key(source_cursor, source_storage, key.dd_borrow(), |time| time.join(&meet))
             }
             else {
-                self.input_history.replay_key(source_cursor, source_storage, key, |time| time.clone())
+                self.input_history.replay_key(source_cursor, source_storage, key.dd_borrow(), |time| time.clone())
             };
             let mut output_replay = if let Some(meet) = meet.as_ref() {
-                self.output_history.replay_key(output_cursor, output_storage, key, |time| time.join(&meet))
+                self.output_history.replay_key(output_cursor, output_storage, key.dd_borrow(), |time| time.join(&meet))
             }
             else {
-                self.output_history.replay_key(output_cursor, output_storage, key, |time| time.clone())
+                self.output_history.replay_key(output_cursor, output_storage, key.dd_borrow(), |time| time.clone())
             };
 
             self.synth_times.clear();

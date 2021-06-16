@@ -70,7 +70,8 @@
 //! of some node degree by one (typically four output changes, corresponding to the addition and deletion
 //! of the new and old counts of the old and new degrees of the affected node).
 
-#![forbid(missing_docs)]
+// haha!
+// #![forbid(missing_docs)]
 
 use std::fmt::Debug;
 
@@ -102,7 +103,7 @@ extern crate serde;
 
 pub mod hashable;
 pub mod operators;
-pub mod algorithms;
+// pub mod algorithms;
 pub mod lattice;
 pub mod trace;
 pub mod input;

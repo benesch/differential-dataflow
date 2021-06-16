@@ -17,6 +17,7 @@ use operators::arrange::{Arranged, ArrangeBySelf};
 use trace::{BatchReader, Cursor, TraceReader};
 
 use crate::trace::cursor::DdBorrow;
+use crate::trace::cursor::DdToOwned;
 
 /// Extension trait for the `distinct` differential dataflow method.
 pub trait ThresholdTotal<G: Scope, K: ExchangeData, R: ExchangeData+Semigroup> where G::Timestamp: TotalOrder+Lattice+Ord {
@@ -92,7 +93,7 @@ pub trait ThresholdTotal<G: Scope, K: ExchangeData, R: ExchangeData+Semigroup> w
 
 }
 
-impl<G: Scope, K: ExchangeData+Hashable, R: ExchangeData+Semigroup> ThresholdTotal<G, K, R> for Collection<G, K, R>
+impl<G: Scope, K: ExchangeData+Hashable+DdBorrow, R: ExchangeData+Semigroup> ThresholdTotal<G, K, R> for Collection<G, K, R>
 where G::Timestamp: TotalOrder+Lattice+Ord {
     fn threshold_semigroup<R2, F>(&self, thresh: F) -> Collection<G, K, R2>
     where
@@ -161,9 +162,9 @@ where
                                     Some(old) => {
                                         let mut temp = old.clone();
                                         temp.plus_equals(diff);
-                                        thresh(key, &temp, Some(old))
+                                        thresh(&key.dd_to_owned(), &temp, Some(old))
                                     },
-                                    None => { thresh(key, diff, None) },
+                                    None => { thresh(&key.dd_to_owned(), diff, None) },
                                 };
 
                                 // Either add or assign `diff` to `count`.
@@ -176,7 +177,7 @@ where
 
                                 if let Some(difference) = difference {
                                     if !difference.is_zero() {
-                                        session.give((key.clone(), time.clone(), difference));
+                                        session.give((key.dd_to_owned(), time.clone(), difference));
                                     }
                                 }
                             });

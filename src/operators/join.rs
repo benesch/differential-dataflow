@@ -24,7 +24,7 @@ use operators::ValueHistory;
 
 use trace::TraceReader;
 
-use crate::trace::cursor::DdBorrow;
+use crate::trace::cursor::{DdBorrow, DdToOwned};
 
 /// Join implementations for `(key,val)` data.
 pub trait Join<G: Scope, K: Data, V: Data, R: Semigroup> {
@@ -651,7 +651,7 @@ where
 
                     // populate `temp` with the results in the best way we know how.
                     thinker.think(|v1,v2,t,r1,r2|
-                        for result in logic(batch.key(batch_storage), v1, v2) {
+                        for result in logic(&batch.key(batch_storage).dd_to_owned(), v1, v2) {
                             temp.push(((result, t.clone()), mult(r1, r2)));
                         }
                     );

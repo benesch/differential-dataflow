@@ -116,7 +116,7 @@ impl<'storage, V: Ord+Clone+'storage, T: Lattice+Ord+Clone, R: Semigroup> ValueH
         &'history mut self,
         cursor: &mut C,
         storage: &'storage C::Storage,
-        key: &K,
+        key: &K::Borrowed,
         logic: L
     ) -> HistoryReplay<'storage, 'history, V, T, R>
     where K: Eq+DdBorrow, C: Cursor<K, V, T, R>, L: Fn(&T)->T

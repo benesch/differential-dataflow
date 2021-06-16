@@ -357,7 +357,7 @@ where
                                 same_key += 1;
                             }
 
-                            cursor.seek_key(&storage, key);
+                            cursor.seek_key(&storage, key.dd_borrow());
                             if cursor.get_key(&storage).map(|k| k.dd_to_owned()).as_ref() == Some(key) {
 
                                 let mut active = &active[active_finger .. same_key];
