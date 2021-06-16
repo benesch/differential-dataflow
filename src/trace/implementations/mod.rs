@@ -41,6 +41,7 @@
 pub mod spine_fueled;
 
 mod merge_batcher;
+mod mmap;
 
 pub use self::merge_batcher::MergeBatcher as Batcher;
 
